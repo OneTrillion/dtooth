@@ -1,33 +1,37 @@
 #!/bin/bash
 
-# Maybe add:
-# Go though array and delete all mac address (46-85-10-D1-AE-9A) type names
-# If there are any errors make a i3 style error window 
-
-bctl="bluetoothctl"
+BCTL="bluetoothctl"
 IFS=' '
+MACREG='^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
+
 declare -A devicesList;
 
+notify-send -t 5000 -- 'Scanning for devices'
+
 # Scan for devices
-$bctl --timeout 4 -- scan on
+$BCTL --timeout 4 -- scan on
 
 # Loop though all scanned devices
 while read line 
 	do
-		# Array of raw input from bctl devices
+		# Array of raw input from BCTL devices
 		read -ra rawInfo <<< "$line"
 
-		dMac=${rawInfo[1]}
-		dName=""
+		# Igores all mac address type names
+		[[ "${rawInfo[2]}" =~ $MACREG ]] && continue
 		
+		dName=""
+
 		# Concatenate names with spaces in to one string
 		for ((i = 2 ; i < ${#rawInfo[@]} ; i++))
 			do
 				dName+="${rawInfo[$i]}"
 			done
 
+		dMac=${rawInfo[1]}
+
 		devicesList+=(["$dName"]="$dMac")
-	done <<< $($bctl -- devices)
+	done <<< $($BCTL -- devices)
 
 # Puts device names in dmenu format
 dmenuFormat=""
@@ -37,12 +41,14 @@ for device in "${!devicesList[@]}"
 	done
 
 res=$(echo -e $dmenuFormat | dmenu)
+[ -z "$res" ] && notify-send -t 5000 -- 'Error invalid input, exiting' && exit
+
 resVal=${devicesList[$res]}
 
 # Attempts to pair based on device mac-address
-$bctl -- pair $resVal
-
-sleep 2 
+notify-send -t 5000 -- 'Attempting to pair device'
+$BCTL -- pair $resVal
 
 # Attempts to connect to device 
-$bctl -- connect $resVal
+notify-send -t 5000 -- 'Attempting to connect to device'
+$BCTL -- connect $resVal
